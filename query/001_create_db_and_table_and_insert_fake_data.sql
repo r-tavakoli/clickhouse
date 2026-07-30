@@ -69,7 +69,7 @@ select
     number + 1 as id,
     first_names[1 + modulo(rand(), length(first_names))] as first_name,
     last_names[1 + modulo(rand(), length(first_names))] as full_name,
-    toDate('1950-01-01') + (rand() % (60 * 365)) as birth_date
+    toDate('1940-01-01') + (rand() % (60 * 365)) as birth_date
 from numbers(100000000) as n
 cross join names as t
 settings max_insert_threads = 16;
