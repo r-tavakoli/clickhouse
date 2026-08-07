@@ -82,8 +82,11 @@ select
     now() - interval randUniform(0,1000) day as order_date,
     randUniform(1,50000) as product_id,
     arrayElement(
-        ['Electronics','Books','Clothing','Home','Sports'],
-        toUInt8(randUniform(1,5))
+        [
+    'Electronics','Books','Clothing','Home','Sports','Toys','Automotive',
+    'Garden','Office','Music','Food','Health','Pet Supplies','Baby',
+    'Beauty','Jewelry','Shoes','Tools','Art','Travel'],
+        toUInt8(rand() % 20 + 1)
     ) as category,
     randUniform(1,10) as quantity,
     toDecimal64(randUniform(10,500),2) as price,
