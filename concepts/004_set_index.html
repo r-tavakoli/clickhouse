@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse SET Index</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .arrow {
+            color: #58a6ff;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        .check {
+            color: #2ea043;
+            font-weight: bold;
+        }
+        .cross {
+            color: #f85149;
+            font-weight: bold;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>📦 SET Index in ClickHouse</h1>
+
+<p>A <strong>set index</strong> stores the distinct values found in each data granule.</p>
+
+<h2>Example</h2>
+<pre><code>CREATE TABLE orders
+(
+    order_id UInt64,
+    country String,
+    status String,
+    price Float64,
+
+    INDEX idx_status status TYPE set(10) GRANULARITY 1
+)
+ENGINE = MergeTree
+ORDER BY order_id;</code></pre>
+
+<p>The important part is:</p>
+<pre><code>INDEX idx_status status TYPE set(10)</code></pre>
+<p>The <strong>10</strong> means the index can store up to 10 distinct values per granule.</p>
+
+<hr>
+
+<h2>How is it different from minmax?</h2>
+
+<p>Suppose one granule contains:</p>
+<pre><code>status:
+Paid
+Paid
+Pending
+Paid
+Cancelled
+Pending</code></pre>
+
+<p>A set index could store:</p>
+<pre><code>{Paid, Pending, Cancelled}</code></pre>
+
+<p>Then consider:</p>
+<pre><code>SELECT *
+FROM orders
+WHERE status = 'Refunded';</code></pre>
+
+<p>ClickHouse checks the set index:</p>
+<pre><code>{Paid, Pending, Cancelled}
+             ↓
+        Refunded ❌</code></pre>
+
+<p>Since <code>Refunded</code> isn't in the set, ClickHouse can skip reading that granule.</p>
+
+<div class="example-box info">
+    <p>With minmax, this doesn't work well for categorical values because min/max doesn't tell you whether a particular value exists.</p>
+</div>
+
+<hr>
+
+<h2>Why the number matters</h2>
+
+<p>This:</p>
+<pre><code>TYPE set(10)</code></pre>
+<p>means:</p>
+<div class="blockquote">
+    <p><em>"Store the distinct values if there are at most 10 of them."</em></p>
+</div>
+
+<p>If a granule contains more than 10 distinct values, the index may become unable to provide useful filtering for that granule.</p>
+
+<h3>Example</h3>
+<div class="example-box good">
+    <p><strong>set(10)</strong></p>
+    <p><span class="check">✅</span> Granule A: <code>{Paid, Pending, Cancelled}</code> → useful</p>
+</div>
+<div class="example-box bad">
+    <p><span class="cross">❌</span> Granule B: <code>{1, 2, 3, ..., 100}</code> → too many distinct values → index is not useful</p>
+</div>
+
+<div class="example-box info">
+    <p><strong>So <code>set</code> is particularly useful for low-cardinality columns.</strong></p>
+</div>
+
+<hr>
+
+<h2>Good use case</h2>
+
+<p>Imagine:</p>
+<pre><code>country
+-------
+IR
+IR
+IR
+IR
+TR
+TR
+TR</code></pre>
+
+<p>or:</p>
+<pre><code>status
+------
+Paid
+Paid
+Pending
+Cancelled</code></pre>
+
+<p>A set index can be very effective.</p>
+
+<h3>Example</h3>
+<pre><code>INDEX idx_country country TYPE set(20) GRANULARITY 1</code></pre>
+<p>Then:</p>
+<pre><code>WHERE country = 'US'</code></pre>
+<p>can potentially skip granules where <code>US</code> isn't present.</p>
+
+<hr>
+
+<h2>set vs minmax</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Index</th>
+            <th>Stores</th>
+            <th>Best for</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>minmax</code></td>
+            <td>minimum + maximum</td>
+            <td>Dates, numbers, ranges</td>
+        </tr>
+        <tr>
+            <td><code>set</code></td>
+            <td>distinct values</td>
+            <td>Low-cardinality categorical data</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>A simple way to remember:</h3>
+<div class="blockquote">
+    <p><code>minmax</code> → <em>"Is the value/range possibly between min and max?"</em></p>
+    <p><code>set</code> → <em>"Is this exact value present?"</em></p>
+</div>
+
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — SET Index<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>

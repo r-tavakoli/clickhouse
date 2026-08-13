@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClickHouse Indexing Mindset</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 1.8rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 { font-size: 2.2rem; border-bottom: 2px solid #30363d; padding-bottom: 0.5rem; }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .star {
+            color: #f9a825;
+            font-size: 1.3rem;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .arrow {
+            color: #58a6ff;
+            font-weight: bold;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.9rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>MINMAX</h1>
+
+<p>Suppose a granule contains:</p>
+<pre><code>order_date:
+
+2026-01-01
+2026-01-02
+...
+2026-01-31</code></pre>
+<p>The minmax index stores approximately:</p>
+<pre><code>min = 2026-01-01
+max = 2026-01-31</code></pre>
+<p>Now:</p>
+<pre><code>WHERE order_date = '2026-03-15'</code></pre>
+<p>ClickHouse can immediately determine:</p>
+<pre><code>2026-03-15 > 2026-01-31</code></pre>
+<p>→ impossible<br>→ skip granule</p>
+<div class="example-box good">
+    <strong>✅ Excellent use case.</strong>
+</div>
+
+<hr>
+
+<h2>Bad minmax example</h2>
+<p>Imagine a granule contains:</p>
+<pre><code>1
+999999
+50
+700000
+12
+...</code></pre>
+<p>So:</p>
+<pre><code>min = 1
+max = 999999</code></pre>
+<p>Now query:</p>
+<pre><code>WHERE value = 500000</code></pre>
+<p>The minmax index says:</p>
+<pre><code>500000 is between 1 and 999999</code></pre>
+<p>Therefore: <em>"Maybe this value exists."</em></p>
+<p>It can't skip the granule.</p>
+<p>If this happens across almost every granule, the index isn't very useful.</p>
+<div class="example-box bad">
+    <strong>❌ Not useful.</strong>
+</div>
+
+<hr>
+
+<h2>⭐ The important concept</h2>
+
+<h3>Good skipping index</h3>
+<div class="example-box good">
+    <pre><code>Granule 1: 1     → 100
+Granule 2: 101   → 200
+Granule 3: 201   → 300
+Granule 4: 301   → 400</code></pre>
+    <p><strong>Query:</strong></p>
+    <pre><code>WHERE value = 250</code></pre>
+    <p>Only Granule 3 needs to be read.</p>
+</div>
+
+<h3>Bad skipping index</h3>
+<div class="example-box bad">
+    <pre><code>Granule 1: 1 → 1,000,000
+Granule 2: 2 → 999,999
+Granule 3: 5 → 999,995
+...</code></pre>
+    <p>Almost every granule overlaps.</p>
+    <p><strong>Little can be skipped.</strong></p>
+</div>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Index to skip, not to find.<br>
+    <a href="https://github.com/r-tavakoli" target="_blank" style="color: #58a6ff; text-decoration: none; border-bottom: 1px dotted #58a6ff;">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClickHouse Indexing Mindset</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 1.8rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 { font-size: 2.2rem; border-bottom: 2px solid #30363d; padding-bottom: 0.5rem; }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .star {
+            color: #f9a825;
+            font-size: 1.3rem;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .arrow {
+            color: #58a6ff;
+            font-weight: bold;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.9rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🧠 The ClickHouse Indexing Mindset</h1>
+
+<h2>The problem</h2>
+<p>Suppose your table is:</p>
+
+<pre><code>CREATE TABLE orders
+(
+    order_id UInt64,
+    customer_id UInt64,
+    order_date Date,
+    category String,
+    quantity UInt32,
+    price Float64,
+    country String,
+    status String
+)
+ENGINE = MergeTree()
+ORDER BY (order_date, customer_id);</code></pre>
+
+<p><strong>Imagine:</strong> 10 billion rows</p>
+<p>Your sorting key is: <code>(order_date, customer_id)</code></p>
+<p>So this query can potentially benefit greatly:</p>
+<pre><code>WHERE order_date >= today() - 7</code></pre>
+<p>But what about:</p>
+<pre><code>WHERE country = 'France'</code></pre>
+<p><code>country</code> isn't part of the sorting key. If France appears throughout the table, the primary index can't efficiently eliminate many granules.</p>
+
+<hr>
+
+<h2>⭐ The most important question</h2>
+<div class="blockquote">
+    <p><strong>Don't ask:</strong></p>
+    <p><em>"Can I create an index on country?"</em></p>
+    <p><strong>Ask:</strong></p>
+    <p><em>"Can this index eliminate enough granules to justify its cost?"</em></p>
+    <p style="margin-top: 0.5rem; color: #58a6ff;">That's the ClickHouse mindset.</p>
+</div>
+
+<hr>
+
+
+<h2>Data-Skipping Indexes in ClickHouse</h2>
+<p>A data-skipping index stores small summaries about blocks/granules of data.</p>
+
+<p><strong>Conceptually:</strong></p>
+<pre><code>Granule 1 → countries: US, UK
+Granule 2 → countries: Germany, France
+Granule 3 → countries: US, France
+Granule 4 → countries: Japan, Korea</code></pre>
+
+<p><strong>Query:</strong></p>
+<pre><code>WHERE country = 'France'</code></pre>
+
+<p>ClickHouse can potentially say:</p>
+<pre><code>Granule 1 → France impossible → SKIP
+Granule 2 → France possible → READ
+Granule 3 → France possible → READ
+Granule 4 → France impossible → SKIP</code></pre>
+
+<div class="blockquote">
+    <p><strong>That's the key idea:</strong></p>
+    <p>The index doesn't find the rows. It tells ClickHouse which granules <em>can be skipped</em>.</p>
+</div>
+
+<hr>
+
+<h2>Most important index types</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Index</th>
+            <th>Best for</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>minmax</code></td>
+            <td>Numeric/date ranges</td>
+        </tr>
+        <tr>
+            <td><code>set</code></td>
+            <td>Low/medium-cardinality values within granules</td>
+        </tr>
+        <tr>
+            <td><code>bloom_filter</code></td>
+            <td>Membership checks, especially strings</td>
+        </tr>
+        <tr>
+            <td><code>tokenbf_v1</code> / <code>ngrambf_v1</code></td>
+            <td>Text/token searches</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Index to skip, not to find.<br>
+    <a href="https://github.com/r-tavakoli" target="_blank" style="color: #58a6ff; text-decoration: none; border-bottom: 1px dotted #58a6ff;">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
