@@ -27,9 +27,9 @@ Click "Preview" to view each HTML file rendered in your browser. Links will open
 
 | File | Preview Link |
 | :--- | :--- |
-| `001_prewhere.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/001_prewhere.html){:target="_blank"} |
-| `002_how_clickhouse_skip_data_with_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/002_how_clickhouse_skip_data_with_index.html){:target="_blank"} |
-| `003_minmax_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/003_minmax_index.html){:target="_blank"} |
-| `004_set_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/004_set_index.html){:target="_blank"} |
-| `005_bloom_filter_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/005_bloom_filter_index.html){:target="_blank"} |
-| `006_projection.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/006_projection.html){:target="_blank"} |
+| `001_prewhere.html` | <a href="https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/001_prewhere.html" target="_blank" rel="noopener noreferrer">Preview</a> |
+| `002_how_clickhouse_skip_data_with_index.html` | <a href="https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/002_how_clickhouse_skip_data_with_index.html" target="_blank" rel="noopener noreferrer">Preview</a> |
+| `003_minmax_index.html` | <a href="https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/003_minmax_index.html" target="_blank" rel="noopener noreferrer">Preview</a> |
+| `004_set_index.html` | <a href="https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/004_set_index.html" target="_blank" rel="noopener noreferrer">Preview</a> |
+| `005_bloom_filter_index.html` | <a href="https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/005_bloom_filter_index.html" target="_blank" rel="noopener noreferrer">Preview</a> |
+| `006_projection.html` | <a href="https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/006_projection.html" target="_blank" rel="noopener noreferrer">Preview</a> |
