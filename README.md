@@ -4,7 +4,6 @@
   <img src="https://img.shields.io/badge/SQL-4479A1?style=for-the-badge&logo=postgresql&logoColor=white" alt="SQL">
 </div>
 
-
 ## 📖 Overview
 
 This repository contains **useful ClickHouse queries, utilities, and best practices** for daily database operations. Whether you're a beginner or an experienced user, it includes SQL examples and concepts for analytics, monitoring, data processing, and performance optimization.
@@ -16,3 +15,8 @@ This repository contains **useful ClickHouse queries, utilities, and best practi
 - ✅ **Data Management** - Backup, restore, and data lifecycle management
 - ✅ **Common Patterns** - Reusable query templates for everyday tasks
 
+## 🔗 Useful Links
+
+- 📄 **Preview html on concepts using** → [html-preview.github.io](https://html-preview.github.io/?url=https://github.com/YOUR_USERNAME/YOUR_REPO/blob/main/README.md)
+- 🔍 **ClickHouse Documentation** - [clickhouse.com/docs](https://clickhouse.com/docs)
+- 💬 **Community** - [ClickHouse GitHub Discussions](https://github.com/ClickHouse/ClickHouse/discussions)
