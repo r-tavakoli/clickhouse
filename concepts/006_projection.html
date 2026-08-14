@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse Projections</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .tree {
+            font-family: "SF Mono", "Fira Code", monospace;
+            color: #8b949e;
+            line-height: 1.8;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>📊 Projections in ClickHouse</h1>
+
+<p>A <strong>projection</strong> is essentially an additional physical representation of a table's data, stored in a way that can make certain queries much faster.</p>
+
+<p>Think of it like this:</p>
+
+<pre class="tree">Original table
+     │
+     ├── normal data
+     │
+     └── projection
+           │
+           └── data organized differently</pre>
+
+<div class="example-box info">
+    <p><strong>💡 Key Insight:</strong> Projections give you the power to have <em>multiple physical layouts</em> for the same logical table, each optimized for different query patterns.</p>
+</div>
+
+<hr>
+
+<h2>When Do You Need a Projection?</h2>
+
+<p>Suppose your table is:</p>
+<pre><code>ORDER BY (order_date, customer_id)</code></pre>
+
+<p>This is excellent for:</p>
+<pre><code>WHERE order_date >= ...</code></pre>
+
+<p>But suppose you frequently run:</p>
+<pre><code>SELECT
+    country,
+    count()
+FROM orders
+GROUP BY country;</code></pre>
+
+<p>Your table isn't organized around <code>country</code>.</p>
+
+<div class="blockquote">
+    <p><strong>A projection can provide another physical layout optimized for that workload.</strong></p>
+</div>
+
+<hr>
+
+<h2>Simple Example</h2>
+
+<pre><code>ALTER TABLE test_db.orders
+ADD PROJECTION country_projection
+(
+    SELECT
+        country,
+        count()
+    GROUP BY country
+);</code></pre>
+
+<p>Conceptually, ClickHouse can maintain an additional representation containing the information needed for that query.</p>
+
+<p>Then ClickHouse's optimizer can decide:</p>
+<div class="blockquote">
+    <p><em>"The projection is cheaper than reading the main table, so I'll use it."</em></p>
+</div>
+
+<p>That's the important difference from manually creating another table.</p>
+
+<hr>
+
+<h2>Projection vs Data-Skipping Index</h2>
+
+<h3>Data-Skipping Index</h3>
+<p><strong>Answers:</strong> <em>"Can I skip this granule?"</em></p>
+<p>For example:</p>
+<pre><code>country = 'IR'
+       ↓
+Can I skip this granule?</code></pre>
+<p>It doesn't contain a replacement copy of the table.</p>
+
+<h3>Projection</h3>
+<p><strong>Answers:</strong> <em>"Can I answer this query more efficiently using another physical representation?"</em></p>
+<p>For example:</p>
+<pre><code>Original table
+ORDER BY order_date
+
+Projection
+GROUP BY country</code></pre>
+<p>The projection can potentially provide the data in a much more efficient form for that query.</p>
+
+<hr>
+
+<h2>⚠️ Projection Isn't Free</h2>
+
+<p>A projection means ClickHouse has additional data to maintain.</p>
+
+<p>Therefore:</p>
+<pre><code>INSERT
+  ↓
+main table
+  +
+projection</code></pre>
+
+<p>And during merges, the projection also needs maintenance.</p>
+
+<div class="example-box warning">
+    <p><strong>⚠️ So don't create projections for every query.</strong></p>
+    <p><strong>Think:</strong> <span class="highlight">frequent + expensive query pattern</span> → possible projection candidate</p>
+</div>
+
+<hr>
+
+<h2>What Projections Do</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Use Case</th>
+            <th>How It Helps</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Queries on non-primary key columns</td>
+            <td>Data is reordered by the column you frequently filter on, making it faster</td>
+        </tr>
+        <tr>
+            <td>Pre-aggregated queries</td>
+            <td>Stores pre-computed GROUP BY results, reducing both computation and I/O</td>
+        </tr>
+        <tr>
+            <td>Multiple filters in one query</td>
+            <td>Multiple lightweight projections can work together to prune data at the granule level</td>
+        </tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>⚙️ How Projections Work</h2>
+
+<ul>
+    <li><strong>Physically stored alongside the main table</strong> – They appear as hidden tables, so you don't need to change your queries.</li>
+    <li><strong>Automatically selected by the query optimizer</strong> – ClickHouse decides whether to use a projection without you having to modify your SQL.</li>
+    <li><strong>Asynchronously updated</strong> – When you insert new data, projections update in the background.</li>
+</ul>
+
+<hr>
+
+<h2>🆚 Projections vs. Materialized Views</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Aspect</th>
+            <th>Projections</th>
+            <th>Materialized Views</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Query interaction</strong></td>
+            <td><span class="check">✅</span> Automatic and transparent</td>
+            <td>Requires querying the target table directly</td>
+        </tr>
+        <tr>
+            <td><strong>Data storage</strong></td>
+            <td><span class="check">✅</span> Stored with the main table (hidden)</td>
+            <td>Stored in a separate, explicit target table</td>
+        </tr>
+        <tr>
+            <td><strong>JOIN support</strong></td>
+            <td><span class="cross">❌</span> Not supported in projection definitions</td>
+            <td><span class="check">✅</span> Supported (refreshable MVs)</td>
+        </tr>
+        <tr>
+            <td><strong>WHERE clause in definition</strong></td>
+            <td><span class="cross">❌</span> Not supported</td>
+            <td><span class="check">✅</span> Supported</td>
+        </tr>
+        <tr>
+            <td><strong>Operational overhead</strong></td>
+            <td><span class="check">✅</span> Lower (automatic maintenance)</td>
+            <td>Higher (manual backfilling, target table management)</td>
+        </tr>
+        <tr>
+            <td><strong>Applicable engines</strong></td>
+            <td>Only MergeTree family</td>
+            <td>Various source table engines</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="example-box info">
+    <p><strong>💡 Pro Tip:</strong> Projections are often the simpler choice when you just need to optimize queries within the same table. Materialized views are better when you need JOINs, filters in the definition, or want to expose the pre-aggregated data as a separate table.</p>
+</div>
+
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Projections<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>

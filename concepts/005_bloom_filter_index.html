@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse Bloom Filter Index</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .probabilistic {
+            color: #f9a825;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🔍 Bloom Filter Index in ClickHouse</h1>
+
+<p>A <strong>Bloom filter index</strong> is a probabilistic data structure that helps ClickHouse quickly determine whether a value <em>might</em> exist within a data granule. It's particularly valuable for <strong>"needle in a haystack"</strong> scenarios where you're searching for rare values across a large dataset.</p>
+
+<div class="blockquote">
+    <p><strong>Key Concept:</strong> Unlike <code>minmax</code> (which tracks ranges) or <code>set</code> (which stores exact distinct values), a Bloom filter uses a probabilistic approach that trades a tiny risk of false positives for significant memory savings — especially useful for high-cardinality columns.</p>
+</div>
+
+<hr>
+
+<h2>How It Works</h2>
+
+<p>Think of a Bloom filter as a compact "checklist" for each granule:</p>
+
+<ul>
+    <li><strong>Stores:</strong> A bit array and multiple hash functions</li>
+    <li><strong>Check:</strong> "Has this value ever been seen in this granule?"</li>
+    <li><strong>Answer:</strong> Either <strong>"definitely NO"</strong> (skip the granule) or <strong>"probably YES"</strong> (read the granule)</li>
+</ul>
+
+<div class="example-box info">
+    <p><strong>💡 Probabilistic Nature:</strong> Bloom filters can produce <span class="probabilistic">false positives</span> (saying a value exists when it doesn't), causing some unnecessary reads. However, they <strong>never produce false negatives</strong> — they will never skip a granule that actually contains the value.</p>
+</div>
+
+<hr>
+
+<h2>Syntax & Usage</h2>
+
+<pre><code>INDEX index_name column_name TYPE bloom_filter([false_positive_rate]) GRANULARITY N</code></pre>
+
+<p>The <code>false_positive_rate</code> parameter is optional — it controls the trade-off between memory usage and accuracy.</p>
+
+<h3>Example</h3>
+<pre><code>CREATE TABLE events
+(
+    event_id UInt64,
+    user_id UInt64,
+    event_type String,
+    value Float64,
+
+    INDEX idx_user user_id TYPE bloom_filter(0.01) GRANULARITY 3
+)
+ENGINE = MergeTree
+ORDER BY event_id;</code></pre>
+
+<p>Here:</p>
+<ul>
+    <li><strong><code>0.01</code></strong> = 1% false positive rate (default is 0.025 or 2.5%)</li>
+    <li><strong><code>GRANULARITY 3</code></strong> = one index entry covers 3 table granules (3 × 8192 rows by default)</li>
+</ul>
+
+<hr>
+
+<h2>Performance Impact</h2>
+
+<p>A real-world example shows the dramatic difference a Bloom filter can make:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Scenario</th>
+            <th>Data Scanned</th>
+            <th>Query Time</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Without Bloom Filter</strong></td>
+            <td>110 million rows (9.68 GB)</td>
+            <td>~0.5 seconds</td>
+        </tr>
+        <tr>
+            <td><strong>With Bloom Filter (GRANULARITY 3)</strong></td>
+            <td>5.41 million rows (475 MB) — <span class="highlight">~20x less data!</span></td>
+            <td>~0.06 seconds — <span class="highlight">~8x faster!</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="example-box good">
+    <p><strong>✅ Best Use Cases:</strong></p>
+    <ul>
+        <li>Looking up <strong>rare values</strong> (like error codes, specific user IDs)</li>
+        <li>Filtering on <strong>high-cardinality columns</strong> that aren't in the sort key</li>
+        <li>Equality checks and <code>IN</code> membership queries</li>
+        <li>Array membership: <code>WHERE has(array_column, value)</code> with <code>bloom_filter</code> on the array column</li>
+    </ul>
+</div>
+
+<hr>
+
+<h2>Bloom Filter vs Other Indexes</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Index Type</th>
+            <th>Stores</th>
+            <th>Best For</th>
+            <th>Cardinality</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>minmax</code></td>
+            <td>min + max values</td>
+            <td>Range queries (dates, numbers)</td>
+            <td>Any</td>
+        </tr>
+        <tr>
+            <td><code>set(N)</code></td>
+            <td>Exact distinct values (up to N)</td>
+            <td>Low-cardinality categorical data</td>
+            <td>Low per granule</td>
+        </tr>
+        <tr>
+            <td><code>bloom_filter</code></td>
+            <td>Probabilistic bit array</td>
+            <td>"Needle in haystack" equality checks</td>
+            <td>High cardinality</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>Simple Rule of Thumb:</strong></p>
+    <p><code>minmax</code> → "Is the value within this range?"</p>
+    <p><code>set</code> → "Is this exact value present?" (when there are few distinct values)</p>
+    <p><code>bloom_filter</code> → "Is this exact value present?" (when there are many distinct values)</p>
+</div>
+
+<hr>
+
+<h2>Important Considerations</h2>
+
+<h3>✅ When to Use</h3>
+<ul>
+    <li>Searching for values that appear <strong>sparsely</strong> within granules</li>
+    <li>Columns with <strong>high overall cardinality</strong> but where values are concentrated within specific granules</li>
+    <li>Log analysis looking for specific error codes or IDs</li>
+    <li>Non-primary key columns that are frequently filtered by equality</li>
+</ul>
+
+<h3>❌ When to Avoid</h3>
+<ul>
+    <li>Most granules already contain <strong>at least one match</strong> (no pruning benefit)</li>
+    <li>Extremely <strong>low-cardinality</strong> columns (where <code>set</code> would work better and with no false positives)</li>
+    <li>Queries that are <strong>always highly selective</strong> across all granules</li>
+</ul>
+
+<div class="example-box info">
+    <p><strong>⚙️ Tuning Tip:</strong> The <code>GRANULARITY</code> parameter is critical. A value that's too high creates larger index entries that may not prune effectively; too low creates more overhead. Test with <code>EXPLAIN indexes = 1</code> to verify your index is actually being used.</p>
+</div>
+
+<hr>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Bloom Filter Index<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
