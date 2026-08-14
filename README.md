@@ -17,6 +17,6 @@ This repository contains **useful ClickHouse queries, utilities, and best practi
 
 ## 🔗 Useful Links
 
-- 📄 **Preview html on concepts using** → [html-preview.github.io](https://html-preview.github.io/?url=https://github.com/YOUR_USERNAME/YOUR_REPO/blob/main/README.md)
+- 📄 **Preview html on concepts using** → [html-preview.github.io](https://html-preview.github.io/)
 - 🔍 **ClickHouse Documentation** - [clickhouse.com/docs](https://clickhouse.com/docs)
 - 💬 **Community** - [ClickHouse GitHub Discussions](https://github.com/ClickHouse/ClickHouse/discussions)
