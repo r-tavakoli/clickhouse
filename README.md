@@ -7,13 +7,12 @@
 
 ## 📖 Overview
 
-This repository contains **useful ClickHouse queries, utilities, and best practices** for daily database operations. Whether you're a beginner or an experienced user, you'll find valuable SQL examples for analytics, monitoring, data processing, and performance optimization.
+This repository contains **useful ClickHouse queries, utilities, and best practices** for daily database operations. Whether you're a beginner or an experienced user, it includes SQL examples and concepts for analytics, monitoring, data processing, and performance optimization.
 
 ## 🎯 What's Inside
 
 - ✅ **Analytics Queries** - Time-series, aggregations, and statistical analysis
 - ✅ **Performance Queries** - Query optimization, indexing, and monitoring
 - ✅ **Data Management** - Backup, restore, and data lifecycle management
-- ✅ **Integration Examples** - Python, FastAPI, and Docker setup
 - ✅ **Common Patterns** - Reusable query templates for everyday tasks
 
