@@ -20,3 +20,16 @@ This repository contains **useful ClickHouse queries, utilities, and best practi
 - 📄 **Preview html on concepts using** → [html-preview.github.io](https://html-preview.github.io/)
 - 🔍 **ClickHouse Documentation** - [clickhouse.com/docs](https://clickhouse.com/docs)
 - 💬 **Community** - [ClickHouse GitHub Discussions](https://github.com/ClickHouse/ClickHouse/discussions)
+
+## 📁 HTML Preview Links
+
+Click "Preview" to view each HTML file rendered in your browser. Links will open in a new tab.
+
+| File | Preview Link |
+| :--- | :--- |
+| `001_prewhere.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/001_prewhere.html){:target="_blank"} |
+| `002_how_clickhouse_skip_data_with_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/002_how_clickhouse_skip_data_with_index.html){:target="_blank"} |
+| `003_minmax_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/003_minmax_index.html){:target="_blank"} |
+| `004_set_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/004_set_index.html){:target="_blank"} |
+| `005_bloom_filter_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/005_bloom_filter_index.html){:target="_blank"} |
+| `006_projection.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/docs/006_projection.html){:target="_blank"} |
