@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse Parts & Partitions</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .tree {
+            font-family: "SF Mono", "Fira Code", monospace;
+            color: #8b949e;
+            line-height: 1.8;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>📁 Parts & Partitions in ClickHouse</h1>
+
+<p>One of the biggest differences between ClickHouse and traditional OLTP databases is how it stores inserted data.</p>
+
+<p>In ClickHouse, an insert does not immediately create one big table file.</p>
+
+<p>Instead:</p>
+
+<div class="flow">
+    <span class="flow-step">INSERT</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">New Part</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">Background Merge</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">Larger Part</span>
+</div>
+
+<div class="blockquote">
+    <p><strong>A part</strong> is a physical chunk of data stored on disk.</p>
+</div>
+
+<hr>
+
+<h2>Example</h2>
+
+<p>You insert:</p>
+<pre><code>INSERT INTO orders VALUES (...)</code></pre>
+
+<p>ClickHouse creates:</p>
+<pre><code>orders/
+ ├── part_1
+ ├── part_2
+ ├── part_3</code></pre>
+
+<p>After background merging:</p>
+<pre><code>orders/
+ └── part_1_2_3</code></pre>
+
+<p>The data is combined.</p>
+
+<hr>
+
+<h2>Why Does ClickHouse Do This?</h2>
+
+<p>Because ClickHouse is optimized for:</p>
+<ul>
+    <li><span class="highlight">huge inserts</span></li>
+    <li><span class="highlight">analytical queries</span></li>
+    <li><span class="highlight">immutable data</span></li>
+</ul>
+
+<p>Instead of updating rows constantly, it writes new parts and later merges them.</p>
+
+<div class="example-box warning">
+    <p><strong>⚠️ This is why:</strong> <span class="highlight">Many small inserts are bad.</span></p>
+</div>
+
+<hr>
+
+<h2>Example of a Bad Ingestion Pattern</h2>
+
+<p>Imagine:</p>
+<pre><code>for row in million_rows:
+    INSERT row</code></pre>
+
+<p>You might create:</p>
+<pre><code>part_1
+part_2
+part_3
+...
+part_100000</code></pre>
+
+<p>Now ClickHouse has a problem:</p>
+<ul>
+    <li>too many files</li>
+    <li>too many merges</li>
+    <li>slower queries</li>
+    <li>high CPU usage</li>
+</ul>
+
+<p>This is called:</p>
+<div class="blockquote">
+    <p><strong>Too many parts problem</strong></p>
+</div>
+
+<hr>
+
+<h2>Parts vs Partitions</h2>
+
+<h3>Partition</h3>
+<p><strong>Logical</strong> data separation:</p>
+<pre><code>PARTITION BY toYYYYMM(order_date)</code></pre>
+<p>Example:</p>
+<pre><code>202501
+202502
+202503</code></pre>
+<p>Used for:</p>
+<ul>
+    <li>dropping old data</li>
+    <li>partition pruning</li>
+</ul>
+
+<h3>Part</h3>
+<p><strong>Physical</strong> storage unit.</p>
+<p>Example:</p>
+<pre><code>Partition 202501
+    |
+    +-- part_001
+    +-- part_002
+    +-- part_003</code></pre>
+<p>A partition can contain many parts.</p>
+
+<h3>Think:</h3>
+<pre class="tree">Table
+ |
+ +-- Partition 202501
+ |        |
+ |        +-- Part A
+ |        +-- Part B
+ |
+ +-- Partition 202502
+          |
+          +-- Part C</pre>
+
+<hr>
+
+<h2>Active Parts</h2>
+
+<p><strong>What does <code>active</code> mean?</strong></p>
+
+<p>From <code>system.parts</code>:</p>
+<pre><code>active = 1</code></pre>
+<p>means:</p>
+<div class="blockquote">
+    <p><strong>This part is currently used by queries.</strong></p>
+</div>
+
+<p>Example:</p>
+<pre><code>part_001  active=1</code></pre>
+<p>Normal.</p>
+
+<pre><code>active = 0</code></pre>
+<p>means:</p>
+<div class="blockquote">
+    <p><strong>Old part, no longer used, waiting for cleanup.</strong></p>
+</div>
+
+<h3>Example:</h3>
+<p>Before merge:</p>
+<pre><code>part_001 active=1
+part_002 active=1</code></pre>
+
+<p>After merge:</p>
+<pre><code>part_003 active=1   &lt;-- new merged part
+
+part_001 active=0
+part_002 active=0</code></pre>
+
+<p>Eventually ClickHouse removes inactive parts.</p>
+
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Parts & Partitions<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
