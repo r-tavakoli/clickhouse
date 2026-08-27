@@ -33,4 +33,4 @@ Click "Preview" to view each HTML file. **Right-click and select "Open in new ta
 | `004_set_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/004_set_index.html?plain=1) |
 | `005_bloom_filter_index.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/005_bloom_filter_index.html?plain=1) |
 | `006_projection.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/006_projection.html?plain=1) |
-| `007_parts_and_partitions.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/0007_parts_and_partitions.html?plain=1) |
+| `007_parts_and_partitions.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/007_parts_and_partitions.html?plain=1) |
