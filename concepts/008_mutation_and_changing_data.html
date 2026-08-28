@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse Mutations & Changing Data</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🔄 Mutations & Changing Data in ClickHouse</h1>
+
+<p>What happens when we actually want to <code>UPDATE</code> or <code>DELETE</code> data?</p>
+
+
+<h2>🧠 1. Concept — Mutations</h2>
+
+<p>In a traditional database, we might do:</p>
+<pre><code>UPDATE orders
+SET status = 'Paid'
+WHERE order_id = 100;</code></pre>
+<p>and expect the existing row to be modified.</p>
+
+<div class="blockquote">
+    <p><strong>In ClickHouse, this is fundamentally different.</strong></p>
+</div>
+
+<p>ClickHouse is optimized around <span class="highlight">immutable data parts</span>.</p>
+
+<p>So an <code>UPDATE</code> is generally implemented as a <strong>mutation</strong>.</p>
+
+<p>Conceptually:</p>
+
+<div class="flow">
+    <span class="flow-step">Existing part</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">read affected data</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">rewrite part</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">new part</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">old part eventually removed</span>
+</div>
+
+<div class="example-box warning">
+    <p><strong>⚠️ That's why updates can be expensive.</strong></p>
+</div>
+
+<hr>
+
+<h2>Example</h2>
+
+<p>Suppose:</p>
+<pre><code>UPDATE test_db.orders
+SET status = 'Paid'
+WHERE order_id = 100;</code></pre>
+
+<p>ClickHouse doesn't simply find one row and overwrite a few bytes.</p>
+<p>It may need to rewrite the affected data in the relevant parts.</p>
+
+<p>For a huge table:</p>
+<pre><code>1 billion rows
+       ↓
+UPDATE 1 row
+       ↓
+potentially expensive</code></pre>
+
+<div class="example-box info">
+    <p><strong>💡 This is one reason ClickHouse isn't designed to behave like an OLTP database.</strong></p>
+</div>
+
+<hr>
+
+<h2>How to Run an UPDATE</h2>
+
+<p>The syntax is:</p>
+<pre><code>ALTER TABLE test_db.orders
+UPDATE status = 'Paid'
+WHERE order_id = 100;</code></pre>
+
+<p>Notice:</p>
+<pre><code>ALTER TABLE
+    ↓
+UPDATE</code></pre>
+<p>This is a <strong>mutation</strong>.</p>
+
+<p>Similarly, deleting:</p>
+<pre><code>ALTER TABLE test_db.orders
+DELETE
+WHERE order_id = 100;</code></pre>
+<p>is also a <strong>mutation</strong>.</p>
+
+<hr>
+
+<h2>Key Takeaways</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Concept</th>
+            <th>Traditional Database</th>
+            <th>ClickHouse</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>UPDATE</strong></td>
+            <td>In-place row modification</td>
+            <td>Mutation — rewrites parts</td>
+        </tr>
+        <tr>
+            <td><strong>DELETE</strong></td>
+            <td>In-place row deletion</td>
+            <td>Mutation — rewrites parts</td>
+        </tr>
+        <tr>
+            <td><strong>Performance</strong></td>
+            <td>Fast for single rows</td>
+            <td>Can be expensive; designed for batch operations</td>
+        </tr>
+        <tr>
+            <td><strong>Syntax</strong></td>
+            <td><code>UPDATE ... SET ...</code></td>
+            <td><code>ALTER TABLE ... UPDATE ...</code></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>Remember:</strong> ClickHouse is optimized for <span class="highlight">append-heavy</span> workloads. Mutations are possible but should be used sparingly and in batch.</p>
+</div>
+
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Mutations<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
