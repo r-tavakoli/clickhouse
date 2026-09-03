@@ -35,3 +35,4 @@ Click "Preview" to view each HTML file. **Right-click and select "Open in new ta
 | `006_projection.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/006_projection.html?plain=1) |
 | `007_parts_and_partitions.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/007_parts_and_partitions.html?plain=1) |
 | `008_mutation_and_changing_data.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/008_mutation_and_changing_data.html?plain=1) |
+| `009_replacing_merge_tree.html` | [Preview](https://html-preview.github.io/?url=https://github.com/r-tavakoli/clickhouse/blob/main/concepts/009_replacing_merge_tree.html?plain=1) |
