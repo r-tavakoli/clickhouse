@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse ReplacingMergeTree</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        .example-box.danger {
+            border-left: 5px solid #f85149;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🔄 ReplacingMergeTree</h1>
+
+<p>Suppose we have:</p>
+
+<pre><code>customer_id | name  | status | version
+------------|-------|--------|--------
+101         | John  | Active | 1</code></pre>
+
+<p>Later John changes his status:</p>
+
+<pre><code>101 | John | Inactive | 2</code></pre>
+
+<p>With a normal <code>MergeTree</code>, both rows exist.</p>
+
+<p>With:</p>
+
+<pre><code>ENGINE = ReplacingMergeTree(version)
+ORDER BY customer_id</code></pre>
+
+<p>ClickHouse can eventually identify:</p>
+
+<pre><code>customer_id = 101</code></pre>
+
+<p>as the same logical row and keep the row with the highest:</p>
+
+<pre><code>version = 2</code></pre>
+
+<p>So conceptually:</p>
+
+<div class="flow">
+    <span class="flow-step">INSERT version 1</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">INSERT version 2</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">both may temporarily exist</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">background merge</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">version 2 remains</span>
+</div>
+
+<div class="blockquote">
+    <p><strong>The key word is: <span class="highlight">Eventually</span></strong></p>
+    <p>The replacement doesn't necessarily happen immediately after the INSERT.</p>
+</div>
+
+<hr>
+
+<h2>⚠️ This is where FINAL comes in</h2>
+
+<p>Suppose you insert:</p>
+
+<pre><code>INSERT INTO users VALUES
+(101, 'John', 'Active', 1);
+
+INSERT INTO users VALUES
+(101, 'John', 'Inactive', 2);</code></pre>
+
+<p>Before the merge happens, this query:</p>
+
+<pre><code>SELECT *
+FROM users
+WHERE customer_id = 101;</code></pre>
+
+<p>may see <strong>both</strong> versions.</p>
+
+<p>But:</p>
+
+<pre><code>SELECT *
+FROM users FINAL
+WHERE customer_id = 101;</code></pre>
+
+<p>asks ClickHouse to apply the <code>ReplacingMergeTree</code> logic during the query.</p>
+
+<p>Conceptually:</p>
+
+<h3>Without FINAL</h3>
+<pre><code>version 1 ──┐
+             ├── returned
+version 2 ──┘</code></pre>
+
+<h3>With FINAL</h3>
+<pre><code>version 1 ──┐
+             ├── deduplicate → version 2
+version 2 ──┘</code></pre>
+
+<hr>
+
+<h2>🚨 Why shouldn't we always use FINAL?</h2>
+
+<p>Because <code>FINAL</code> can require <strong>additional processing</strong> at query time.</p>
+
+<p>On a huge table:</p>
+
+<pre><code>1 billion rows
+      ↓
+SELECT ... FINAL
+      ↓
+deduplication work
+      ↓
+CPU / memory / I/O</code></pre>
+
+<div class="example-box danger">
+    <p><strong>🚨 So don't think:</strong></p>
+    <p><em>"ReplacingMergeTree means I should always use FINAL."</em></p>
+</div>
+
+<div class="example-box info">
+    <p><strong>💡 Instead:</strong></p>
+    <p>Use <code>FINAL</code> when query-time correctness requires seeing the deduplicated/latest state and the underlying merges cannot be relied upon to have completed.</p>
+    <p>And for large analytical queries, you should <span class="highlight">carefully consider its cost</span>.</p>
+</div>
+
+<hr>
+
+<h2>Key Takeaways</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Aspect</th>
+            <th>Explanation</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>ReplacingMergeTree</strong></td>
+            <td>Keeps only the latest version (by version column) after merges</td>
+        </tr>
+        <tr>
+            <td><strong>Eventually</strong></td>
+            <td>Replacement happens during background merges, not immediately</td>
+        </tr>
+        <tr>
+            <td><strong>FINAL</strong></td>
+            <td>Forces deduplication at query time — can be expensive</td>
+        </tr>
+        <tr>
+            <td><strong>Best Practice</strong></td>
+            <td>Use FINAL sparingly; rely on merges when possible</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — ReplacingMergeTree<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
