@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse ReplacingMergeTree: argMax()</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        .example-box.danger {
+            border-left: 5px solid #f85149;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        .data-table {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 0.9rem;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .data-table td, .data-table th {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #30363d;
+        }
+        .data-table th {
+            background: #1f2937;
+        }
+        .arrow {
+            color: #58a6ff;
+            font-weight: bold;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🔄 ReplacingMergeTree: argMax()</h1>
+
+<p>The <code>ReplacingMergeTree</code> doesn't automatically generate versions for us.</p>
+
+
+<div class="blockquote">
+    <p><strong>How do I get the latest value without using FINAL?</strong></p>
+</div>
+
+<p>The key tool is <code>argMax()</code>.</p>
+
+<hr>
+
+<h2>The Problem</h2>
+
+<p>Suppose our table contains:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>customer_id</th>
+            <th>status</th>
+            <th>updated_at</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>101</td>
+            <td>Active</td>
+            <td>10:00:00.001</td>
+        </tr>
+        <tr>
+            <td>101</td>
+            <td>Inactive</td>
+            <td>10:00:05.200</td>
+        </tr>
+        <tr>
+            <td>101</td>
+            <td>Active</td>
+            <td>10:00:08.500</td>
+        </tr>
+        <tr>
+            <td>102</td>
+            <td>Active</td>
+            <td>11:00:00.100</td>
+        </tr>
+        <tr>
+            <td>102</td>
+            <td>Inactive</td>
+            <td>11:00:04.300</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>We want:</p>
+<pre><code>101 → Active
+102 → Inactive</code></pre>
+<p>because those are the values at the latest timestamp.</p>
+
+<hr>
+
+<h2>argMax()</h2>
+
+<p>The syntax is:</p>
+<pre><code>argMax(value, version)</code></pre>
+<p>Meaning:</p>
+<div class="blockquote">
+    <p><strong>Return <code>value</code> from the row where <code>version</code> is maximum.</strong></p>
+</div>
+
+<p>For example:</p>
+
+<pre><code>SELECT
+    customer_id,
+    argMax(status, updated_at) AS latest_status
+FROM test_db.customer_versions_dt
+GROUP BY customer_id;</code></pre>
+
+<p>For customer 101:</p>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>updated_at</th>
+            <th>status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>10:00:00.001</td>
+            <td>Active</td>
+        </tr>
+        <tr>
+            <td>10:00:05.200</td>
+            <td>Inactive</td>
+        </tr>
+        <tr>
+            <td style="background: #1f2937; color: #f9a825;">10:00:08.500</td>
+            <td style="background: #1f2937; color: #f9a825;">Active ← max timestamp</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>So:</p>
+<pre><code>argMax(status, updated_at)</code></pre>
+<p>returns:</p>
+<pre><code>Active</code></pre>
+
+<hr>
+
+<h2>We Can Get Multiple Columns</h2>
+
+<p>This is where <code>argMax()</code> becomes really powerful.</p>
+
+<pre><code>SELECT
+    customer_id,
+    argMax(name, updated_at) AS name,
+    argMax(country, updated_at) AS country,
+    argMax(status, updated_at) AS status,
+    max(updated_at) AS updated_at
+FROM test_db.customer_versions_dt
+GROUP BY customer_id
+ORDER BY customer_id;</code></pre>
+
+<div class="example-box info">
+    <p><strong>💡 You get the latest customer state without FINAL.</strong></p>
+</div>
+
+<hr>
+
+<h2>argMax() vs ROW_NUMBER()</h2>
+
+<h3>Traditional SQL:</h3>
+<pre><code>SELECT *
+FROM
+(
+    SELECT
+        *,
+        row_number() OVER (
+            PARTITION BY customer_id
+            ORDER BY updated_at DESC
+        ) AS rn
+    FROM customer_versions
+)
+WHERE rn = 1;</code></pre>
+
+<h3>ClickHouse:</h3>
+<pre><code>SELECT
+    customer_id,
+    argMax(status, updated_at)
+FROM customer_versions
+GROUP BY customer_id;</code></pre>
+
+<div class="example-box good">
+    <p><strong>✅ For large analytical datasets, the second pattern is often very natural in ClickHouse</strong> because you're doing an aggregation rather than ranking every row.</p>
+</div>
+
+<hr>
+
+<h2>But There's an Important Trap ⚠️</h2>
+
+<p>Suppose:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>customer_id</th>
+            <th>status</th>
+            <th>updated_at</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>101</td>
+            <td>Active</td>
+            <td>10:00:00.500</td>
+        </tr>
+        <tr>
+            <td>101</td>
+            <td>Inactive</td>
+            <td>10:00:00.500</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>Which one is latest?</p>
+<p>They have <strong>exactly the same version</strong>.</p>
+
+<div class="example-box danger">
+    <p><strong>⚠️ argMax() doesn't magically know which update happened later.</strong></p>
+</div>
+
+<p>This is why a timestamp alone isn't always a perfect version column.</p>
+
+<p>A common solution is to have a deterministic sequence/version:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>customer_id</th>
+            <th>status</th>
+            <th>version</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>101</td>
+            <td>Active</td>
+            <td>10</td>
+        </tr>
+        <tr>
+            <td>101</td>
+            <td>Inactive</td>
+            <td style="background: #1f2937; color: #f9a825;">11</td>
+        </tr>
+    </tbody>
+</table>
+
+<p>Then:</p>
+<pre><code>argMax(status, version)</code></pre>
+<p>unambiguously returns <code>Inactive</code>.</p>
+
+<hr>
+
+<h2>Even Better: Use a Tuple</h2>
+
+<p>Here's a very useful ClickHouse trick.</p>
+
+<p>You can use:</p>
+<pre><code>argMax(
+    (name, country, status),
+    (updated_at, version)
+)</code></pre>
+
+<p>The second argument is a <strong>tuple</strong> used for ordering.</p>
+
+<p>For example:</p>
+
+<pre><code>SELECT
+    customer_id,
+    argMax(
+        (name, country, status),
+        (updated_at, version)
+    ) AS latest
+FROM test_db.customer_versions_dt
+GROUP BY customer_id;</code></pre>
+
+<p>Now ClickHouse compares:</p>
+<pre><code>(updated_at, version)</code></pre>
+<p><strong>lexicographically</strong>.</p>
+
+<p>So if two records have the same timestamp:</p>
+
+<pre><code>10:00:00.500, version 10
+10:00:00.500, version 11  ← wins</code></pre>
+
+<div class="example-box good">
+    <p><strong>✅ This gives us a deterministic tie-breaker.</strong></p>
+</div>
+
+<div class="blockquote">
+    <p><strong>💡 Pro Tip:</strong> Use <code>argMax()</code> with tuples for a robust "latest state" query pattern that doesn't require FINAL and handles edge cases gracefully.</p>
+</div>
+
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — argMax()<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
