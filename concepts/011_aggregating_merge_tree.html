@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse AggregatingMergeTree</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        .example-box.danger {
+            border-left: 5px solid #f85149;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        .data-table {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 0.9rem;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .data-table td, .data-table th {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #30363d;
+        }
+        .data-table th {
+            background: #1f2937;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>📊 AggregatingMergeTree in ClickHouse</h1>
+
+
+<h2>1. The Problem</h2>
+
+<p>Imagine we have <strong>10 billion orders</strong>:</p>
+<pre><code>order_id
+customer_id
+country
+amount
+order_date</code></pre>
+
+<p>And our dashboard constantly asks:</p>
+<div class="blockquote">
+    <p><em>"How much revenue did we make per country per day?"</em></p>
+</div>
+
+<p>If we repeatedly run:</p>
+<pre><code>SELECT
+    order_date,
+    country,
+    sum(amount)
+FROM orders
+GROUP BY order_date, country;</code></pre>
+
+<p>ClickHouse has to aggregate potentially <strong>billions of rows every time</strong>.</p>
+
+<div class="example-box info">
+    <p><strong>💡 Instead, we can maintain pre-aggregated states.</strong></p>
+    <p>That's where <code>AggregatingMergeTree</code> comes in.</p>
+</div>
+
+<hr>
+
+<h2>2. AggregatingMergeTree</h2>
+
+<p><strong>Basic idea:</strong></p>
+
+<div class="flow">
+    <span class="flow-step">10 billion raw orders</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">aggregation</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">much smaller aggregate table</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">dashboard queries</span>
+</div>
+
+<p><strong>Example target table:</strong></p>
+
+<pre><code>CREATE TABLE test_db.daily_country_sales
+(
+    order_date Date,
+    country String,
+
+    revenue AggregateFunction(sum, Float64),
+    orders AggregateFunction(count)
+)
+ENGINE = AggregatingMergeTree()
+ORDER BY (order_date, country);</code></pre>
+
+<p>Notice these aren't normal:</p>
+<pre><code>sum(...)
+count(...)</code></pre>
+
+<p>Instead:</p>
+<pre><code>AggregateFunction(sum, Float64)
+AggregateFunction(count)</code></pre>
+
+<div class="blockquote">
+    <p><strong>These columns store aggregate states, not finalized numbers.</strong></p>
+</div>
+
+<hr>
+
+<h2>3. sumState() and sumMerge()</h2>
+
+<p><strong>This is the key concept today.</strong></p>
+
+<p>When inserting into the aggregate table:</p>
+<pre><code>sumState(amount)</code></pre>
+<p>creates a <strong>sum state</strong>.</p>
+
+<p>When reading:</p>
+<pre><code>sumMerge(revenue)</code></pre>
+<p>merges those states and gives you the actual result.</p>
+
+<p>Think:</p>
+
+<div class="flow">
+    <span class="flow-step">sumState()</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">stores intermediate aggregation state</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">sumMerge()</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">final number</span>
+</div>
+
+<p>Similarly:</p>
+<pre><code>countState()
+     ↓
+countMerge()</code></pre>
+
+<hr>
+
+<h2>4. Example</h2>
+
+<p>Suppose raw orders are:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>date</th>
+            <th>country</th>
+            <th>amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td>2026-09-10</td><td>US</td><td>100</td></tr>
+        <tr><td>2026-09-10</td><td>US</td><td>200</td></tr>
+        <tr><td>2026-09-10</td><td>IR</td><td>150</td></tr>
+        <tr><td>2026-09-10</td><td>US</td><td>50</td></tr>
+    </tbody>
+</table>
+
+<p>We could insert aggregate states:</p>
+
+<pre><code>INSERT INTO test_db.daily_country_sales
+SELECT
+    order_date,
+    country,
+    sumState(amount),
+    countState()
+FROM test_db.orders
+GROUP BY
+    order_date,
+    country;</code></pre>
+
+<p>Then query:</p>
+
+<pre><code>SELECT
+    order_date,
+    country,
+    sumMerge(revenue) AS revenue,
+    countMerge(orders) AS orders
+FROM test_db.daily_country_sales
+GROUP BY
+    order_date,
+    country
+ORDER BY
+    order_date,
+    country;</code></pre>
+
+<p><strong>Result:</strong></p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>date</th>
+            <th>country</th>
+            <th>revenue</th>
+            <th>orders</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td>2026-09-10</td><td>IR</td><td>150</td><td>1</td></tr>
+        <tr><td>2026-09-10</td><td>US</td><td>350</td><td>3</td></tr>
+    </tbody>
+</table>
+
+<hr>
+
+<h2>5. Why Not Just Use MergeTree?</h2>
+
+<p>You could create:</p>
+
+<pre><code>CREATE TABLE daily_country_sales
+(
+    order_date Date,
+    country String,
+    revenue Float64,
+    orders UInt64
+)
+ENGINE = MergeTree()
+ORDER BY (order_date, country);</code></pre>
+
+<p>But <code>AggregatingMergeTree</code> is designed specifically for storing <strong>aggregate states that can be merged</strong>.</p>
+
+<p>This becomes particularly powerful when combined with:</p>
+<pre><code>Materialized Views</code></pre>
+
+<div class="flow">
+    <span class="flow-step">Raw orders</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">Materialized View</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">AggregatingMergeTree</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">Dashboard</span>
+</div>
+
+<hr>
+
+<h2>6. ⚠️ Very Important: AggregatingMergeTree Doesn't Magically Aggregate Your Data</h2>
+
+<p>This is a common misunderstanding.</p>
+
+<p>Creating:</p>
+<pre><code>ENGINE = AggregatingMergeTree()</code></pre>
+<p>doesn't mean:</p>
+<div class="blockquote">
+    <p><em>"ClickHouse will automatically aggregate everything."</em></p>
+</div>
+
+<p>You need to insert aggregate states:</p>
+<pre><code>sumState()
+countState()
+uniqState()
+argMaxState()</code></pre>
+
+<p>and retrieve them using:</p>
+<pre><code>sumMerge()
+countMerge()
+uniqMerge()
+argMaxMerge()</code></pre>
+
+<div class="example-box warning">
+    <p><strong>⚠️ Remember:</strong> <code>AggregatingMergeTree</code> stores <em>states</em>, not final values. You must use the <code>State</code> and <code>Merge</code> combinators.</p>
+</div>
+
+<hr>
+
+<h2>Summary</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Concept</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>AggregatingMergeTree</strong></td>
+            <td>Stores pre-aggregated states, not raw rows</td>
+        </tr>
+        <tr>
+            <td><strong>sumState()</strong></td>
+            <td>Creates an intermediate sum state during INSERT</td>
+        </tr>
+        <tr>
+            <td><strong>sumMerge()</strong></td>
+            <td>Merges sum states and returns the final value during SELECT</td>
+        </tr>
+        <tr>
+            <td><strong>AggregateFunction(type, ...)</strong></td>
+            <td>Special column type for storing aggregate states</td>
+        </tr>
+        <tr>
+            <td><strong>system.columns</strong></td>
+            <td>Use to verify aggregate state column types</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>💡 Key Takeaway:</strong> <code>AggregatingMergeTree</code> + Materialized Views = a powerful pre-aggregation pipeline that dramatically speeds up dashboard queries on massive datasets.</p>
+</div>
+
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — AggregatingMergeTree<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
