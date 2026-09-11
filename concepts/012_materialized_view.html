@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse Materialized Views</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        .example-box.danger {
+            border-left: 5px solid #f85149;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        .data-table {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 0.9rem;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .data-table td, .data-table th {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #30363d;
+        }
+        .data-table th {
+            background: #1f2937;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+
+<h1>🔗 Materialized Views in ClickHouse</h1>
+
+
+<div class="example-box good">
+    <p><strong>✅ Materialized Views can automatically populate our aggregate table whenever new data is inserted.</strong></p>
+</div>
+
+<h2>1. The Problem</h2>
+
+<p>Imagine new orders arrive continuously:</p>
+<pre><code>10:00 → 100,000 orders
+10:01 → 100,000 orders
+10:02 → 100,000 orders
+...</code></pre>
+
+<p>We don't want to repeatedly run a huge aggregation query.</p>
+
+
+<p>Instead:</p>
+
+<div class="flow">
+    <span class="flow-step">orders</span>
+    <span class="flow-arrow">│ INSERT ▼</span>
+    <span class="flow-step">Materialized View</span>
+    <span class="flow-arrow">▼</span>
+    <span class="flow-step">AggregatingMergeTree</span>
+    <span class="flow-arrow">▼</span>
+    <span class="flow-step">Dashboard</span>
+</div>
+
+<div class="blockquote">
+    <p><strong>The Materialized View processes the incoming insert automatically.</strong></p>
+</div>
+
+<hr>
+
+<h2>2. Create a Target Table</h2>
+
+<p>Suppose we have this table:</p>
+
+<pre><code>DROP TABLE IF EXISTS test_db.daily_country_sales_mv;
+
+CREATE TABLE test_db.daily_country_sales_mv
+(
+    order_date Date,
+    country String,
+    revenue AggregateFunction(sum, Float64),
+    orders AggregateFunction(count),
+    customers AggregateFunction(uniq, UInt32)
+)
+ENGINE = AggregatingMergeTree()
+ORDER BY (order_date, country);</code></pre>
+
+<p>We are storing:</p>
+<ul>
+    <li><strong>revenue</strong></li>
+    <li><strong>order count</strong></li>
+    <li><strong>unique customer count</strong></li>
+</ul>
+
+<p>as aggregate states.</p>
+
+<hr>
+
+<h2>3. Create the Materialized View</h2>
+
+<pre><code>CREATE MATERIALIZED VIEW test_db.daily_country_sales_view
+TO test_db.daily_country_sales_mv
+AS
+SELECT
+    order_date,
+    country,
+    sumState(quantity * price) AS revenue,
+    countState() AS orders,
+    uniqState(customer_id) AS customers
+FROM test_db.orders
+WHERE status != 'Cancelled'
+GROUP BY
+    order_date,
+    country;</code></pre>
+
+<p>The important part is:</p>
+<pre><code>TO test_db.daily_country_sales_mv</code></pre>
+
+<div class="blockquote">
+    <p><strong>This tells ClickHouse:</strong></p>
+    <p><em>Put the result of this Materialized View into this target table.</em></p>
+</div>
+
+<hr>
+
+<h2>4. What Happens Now?</h2>
+
+<p>Suppose you insert:</p>
+
+<div class="flow">
+    <span class="flow-step">orders</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">INSERT</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">Materialized View executes</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">GROUP BY country/date</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">aggregate states</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">daily_country_sales_mv</span>
+</div>
+
+<div class="example-box good">
+    <p><strong>✅ You don't have to manually populate the aggregate table for future inserts.</strong></p>
+    <p>That's the big advantage.</p>
+</div>
+
+<hr>
+
+<h2>5. Query the Result</h2>
+
+<pre><code>SELECT
+    order_date,
+    country,
+    sumMerge(revenue) AS revenue,
+    countMerge(orders) AS orders,
+    uniqMerge(customers) AS customers
+FROM test_db.daily_country_sales_mv
+GROUP BY
+    order_date,
+    country
+ORDER BY
+    order_date,
+    country;</code></pre>
+
+<p>Notice the pattern:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>INSERT side</th>
+            <th></th>
+            <th>SELECT side</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>sumState()</code></td>
+            <td>→</td>
+            <td><code>sumMerge()</code></td>
+        </tr>
+        <tr>
+            <td><code>countState()</code></td>
+            <td>→</td>
+            <td><code>countMerge()</code></td>
+        </tr>
+        <tr>
+            <td><code>uniqState()</code></td>
+            <td>→</td>
+            <td><code>uniqMerge()</code></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="example-box info">
+    <p><strong>💡 This pattern is extremely important in ClickHouse.</strong></p>
+</div>
+
+<hr>
+
+<h2>6. ⚠️ A Very Important Materialized View Behavior</h2>
+
+<p>This catches many people.</p>
+
+<p>Suppose <code>orders</code> already contains:</p>
+<pre><code>10 million rows</code></pre>
+
+<p>and then you create:</p>
+<pre><code>CREATE MATERIALIZED VIEW ...</code></pre>
+
+<div class="example-box danger">
+    <p><strong>⚠️ The Materialized View does not automatically process those existing 10 million rows.</strong></p>
+    <p>It normally processes <strong>new inserts</strong> that happen after the view is created.</p>
+</div>
+
+<p>So if you want to populate the target table with historical data, you typically do:</p>
+
+<pre><code>INSERT INTO test_db.daily_country_sales_mv
+SELECT
+    order_date,
+    country,
+    sumState(quantity * price),
+    countState(),
+    uniqState(customer_id)
+FROM test_db.orders
+WHERE status != 'Cancelled'
+GROUP BY
+    order_date,
+    country;</code></pre>
+
+<p>Then the Materialized View handles future inserts.</p>
+
+<p>This distinction is important:</p>
+
+<div class="flow">
+    <span class="flow-step">Existing data</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">manual backfill</span>
+</div>
+
+<div class="flow">
+    <span class="flow-step">New data</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">Materialized View</span>
+</div>
+
+<hr>
+
+<h2>7. Materialized View ≠ Normal Database View</h2>
+
+<p>A normal view:</p>
+<pre><code>CREATE VIEW ...</code></pre>
+<p>basically stores a query.</p>
+
+<p>When you query it:</p>
+
+<div class="flow">
+    <span class="flow-step">SELECT</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">execute underlying query</span>
+    <span class="flow-arrow">↓</span>
+    <span class="flow-step">calculate result</span>
+</div>
+
+<p>A Materialized View can <strong>store the transformed result in a target table</strong>.</p>
+
+<p>So:</p>
+
+<h3>Normal View:</h3>
+<pre><code>query → raw data → calculate → result</code></pre>
+
+<h3>Materialized View:</h3>
+<pre><code>INSERT → transform → store
+                       ↓
+                    query
+                       ↓
+                  small dataset</code></pre>
+
+<div class="example-box good">
+    <p><strong>✅ This is why Materialized Views can be extremely useful for dashboards.</strong></p>
+</div>
+
+
+<hr>
+
+<h2>Summary</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Concept</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Materialized View</strong></td>
+            <td>Automatically transforms incoming inserts and stores results</td>
+        </tr>
+        <tr>
+            <td><strong>TO target_table</strong></td>
+            <td>Specifies where the Materialized View writes its output</td>
+        </tr>
+        <tr>
+            <td><strong>State → Merge pattern</strong></td>
+            <td>sumState → sumMerge, countState → countMerge, etc.</td>
+        </tr>
+        <tr>
+            <td><strong>Historical data</strong></td>
+            <td>Must be backfilled manually with an INSERT ... SELECT</td>
+        </tr>
+        <tr>
+            <td><strong>Normal View vs Materialized View</strong></td>
+            <td>Normal view calculates on read; Materialized View stores results</td>
+        </tr>
+        <tr>
+            <td><strong>system.dependencies</strong></td>
+            <td>Shows relationships between tables and views</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>💡 Key Takeaway:</strong> Materialized Views + AggregatingMergeTree = automatic, continuous pre-aggregation for real-time dashboards.</p>
+</div>
+
+<hr>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Materialized Views<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
