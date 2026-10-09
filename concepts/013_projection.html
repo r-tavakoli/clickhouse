@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse Projections vs Materialized Views</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        .example-box.danger {
+            border-left: 5px solid #f85149;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        .data-table {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 0.9rem;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .data-table td, .data-table th {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #30363d;
+        }
+        .data-table th {
+            background: #1f2937;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🔀 Projections vs Materialized Views</h1>
+
+<div class="blockquote">
+    <p><strong>Projections</strong> let ClickHouse maintain alternative physical representations of a table's data, while <strong>Materialized Views</strong> let us build a separate data-processing pipeline.</p>
+    <p>Both can reduce query costs, but they solve different problems.</p>
+</div>
+
+<hr>
+
+<h2>1. The Problem</h2>
+
+<p>Imagine your <code>test_db.orders</code> table contains <strong>billions of rows</strong>.</p>
+
+<p>Your table is ordered by:</p>
+<pre><code>ORDER BY (order_date, customer_id)</code></pre>
+
+<p>This works well for queries filtering by date, such as:</p>
+
+<pre><code>SELECT *
+FROM test_db.orders
+WHERE order_date >= '2026-01-01'
+  AND order_date < '2026-02-01';</code></pre>
+
+<p>But what happens when analysts frequently filter by <code>product_id</code>?</p>
+
+<pre><code>SELECT
+    product_id,
+    count() AS orders
+FROM test_db.orders
+WHERE product_id = 100
+GROUP BY product_id;</code></pre>
+
+<p>Because <code>product_id</code> isn't part of the sorting key, ClickHouse might need to read many more rows than we'd like.</p>
+
+<div class="example-box info">
+    <p><strong>💡 We have two possible approaches:</strong></p>
+    <ul>
+        <li><strong>Projection:</strong> maintain an alternative data layout that can help the optimizer execute the query more efficiently.</li>
+        <li><strong>Materialized View:</strong> build a separate table containing precomputed results or transformed data.</li>
+    </ul>
+    <p><strong>The right choice depends on what the workload needs.</strong></p>
+</div>
+
+<hr>
+
+<h2>2. Projection — An Alternative Data Layout</h2>
+
+<p>A projection is stored as part of the source table's data parts. It can maintain a different sorting order or a pre-aggregated representation.</p>
+
+<p>For example, create a projection optimized for filtering by product:</p>
+
+<pre><code>ALTER TABLE test_db.orders
+ADD PROJECTION IF NOT EXISTS projection_by_product
+(
+    SELECT *
+    ORDER BY (product_id, order_date)
+);</code></pre>
+
+<p>For existing data, you can materialize it:</p>
+
+<pre><code>ALTER TABLE test_db.orders
+MATERIALIZE PROJECTION projection_by_product;</code></pre>
+
+<p>Now the projection provides an alternative ordering:</p>
+
+<pre><code>Original table:
+ORDER BY (order_date, customer_id)
+
+Projection:
+ORDER BY (product_id, order_date)</code></pre>
+
+<p>When a query is compatible with this layout, ClickHouse may automatically select the projection.</p>
+
+<p>You can still query the original table:</p>
+
+<pre><code>SELECT
+    product_id,
+    count() AS orders
+FROM test_db.orders
+WHERE product_id = 100
+GROUP BY product_id;</code></pre>
+
+<div class="blockquote">
+    <p><strong>You generally don't need to query the projection by name.</strong></p>
+</div>
+
+<div class="example-box warning">
+    <p><strong>⚠️ Important:</strong> A projection doesn't guarantee faster execution. It consumes additional storage, and the optimizer decides whether using it is beneficial. Always inspect the query plan and benchmark the result.</p>
+</div>
+
+<hr>
+
+<h2>3. Projection Can Also Pre-Aggregate Data</h2>
+
+<p>Projections aren't limited to alternative sorting orders. They can also store aggregated representations.</p>
+
+<p>For example:</p>
+
+<pre><code>ALTER TABLE test_db.orders
+ADD PROJECTION IF NOT EXISTS projection_country_count
+(
+    SELECT
+        country,
+        count() AS order_count
+    GROUP BY country
+);</code></pre>
+
+<p>This projection maintains a representation of order counts by country.</p>
+
+<p>A query such as:</p>
+
+<pre><code>SELECT
+    country,
+    count() AS order_count
+FROM test_db.orders
+GROUP BY country;</code></pre>
+
+<p>may be able to use that representation instead of aggregating all the raw rows.</p>
+
+<div class="example-box warning">
+    <p><strong>⚠️ However, the optimizer must determine that the projection can correctly answer the query.</strong> More complicated expressions or different aggregation requirements may prevent its use.</p>
+</div>
+
+<p><strong>Think of this as:</strong></p>
+
+<div class="flow">
+    <span class="flow-step">Raw orders</span>
+    <span class="flow-arrow">│</span>
+    <span class="flow-step">Projection</span>
+    <span class="flow-arrow">│</span>
+    <span class="flow-step"> Alternative sorting order</span>
+    <span class="flow-arrow">│</span>
+    <span class="flow-step">Pre-aggregated representation</span>
+    <span class="flow-arrow">│</span>
+    <span class="flow-step">Optimized query execution</span>
+</div>
+
+<hr>
+
+<h2>4. Materialized View — A Separate Data Pipeline</h2>
+
+<p>Suppose a dashboard repeatedly needs:</p>
+<ul>
+    <li>Daily revenue by country.</li>
+    <li>Number of valid orders.</li>
+    <li>Number of unique customers.</li>
+    <li>No cancelled orders.</li>
+</ul>
+
+<p>Instead of repeatedly aggregating billions of raw rows, we can create a separate target table and populate it through an incremental Materialized View.</p>
+
+<p><strong>The architecture looks like this:</strong></p>
+
+<div class="flow">
+    <span class="flow-step">orders</span>
+    <span class="flow-arrow">INSERT </span>
+    <span class="flow-step">Materialized View</span>
+    <span class="flow-arrow">Transform and aggregate</span>
+    <span class="flow-step">AggregatingMergeTree target</span>
+    <span class="flow-arrow">READ</span>
+    <span class="flow-step">Dashboard</span>
+</div>
+
+<p>For example, the target table can store:</p>
+
+<pre><code>CREATE TABLE test_db.daily_country_sales
+(
+    order_date Date,
+    country String,
+    revenue AggregateFunction(sum, Float64),
+    orders AggregateFunction(count),
+    customers AggregateFunction(uniq, UInt32)
+)
+ENGINE = AggregatingMergeTree()
+ORDER BY (order_date, country);</code></pre>
+
+<p>The Materialized View calculates aggregate states as data is inserted:</p>
+
+<pre><code>CREATE MATERIALIZED VIEW test_db.daily_country_sales_view
+TO test_db.daily_country_sales
+AS
+SELECT
+    order_date,
+    country,
+    sumState(quantity * price) AS revenue,
+    countState() AS orders,
+    uniqState(customer_id) AS customers
+FROM test_db.orders
+WHERE status != 'Cancelled'
+GROUP BY
+    order_date,
+    country;</code></pre>
+
+<p>You then query the target table using the matching merge functions:</p>
+
+<pre><code>SELECT
+    order_date,
+    country,
+    sumMerge(revenue) AS revenue,
+    countMerge(orders) AS orders,
+    uniqMerge(customers) AS unique_customers
+FROM test_db.daily_country_sales
+GROUP BY
+    order_date,
+    country
+ORDER BY
+    order_date,
+    country;</code></pre>
+
+<div class="example-box good">
+    <p><strong>✅ The advantage is that the dashboard queries a much smaller, pre-aggregated dataset.</strong></p>
+</div>
+
+<div class="example-box danger">
+    <p><strong>⚠️ Note:</strong> an incremental Materialized View processes new inserts, not arbitrary changes to previously inserted source rows. Existing historical data generally requires a backfill.</p>
+</div>
+
+<hr>
+
+<h2>5. Projection vs. Materialized View — The Key Differences</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Feature</th>
+            <th>Projection</th>
+            <th>Incremental Materialized View</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Main purpose</strong></td>
+            <td>Optimize queries against a source table</td>
+            <td>Maintain a transformed dataset</td>
+        </tr>
+        <tr>
+            <td><strong>Storage</strong></td>
+            <td>Within source table data parts</td>
+            <td>Separate target table</td>
+        </tr>
+        <tr>
+            <td><strong>Different sort order</strong></td>
+            <td><span class="check">✅</span> Yes</td>
+            <td><span class="check">✅</span> Yes, through target table</td>
+        </tr>
+        <tr>
+            <td><strong>Pre-aggregation</strong></td>
+            <td><span class="check">✅</span> Yes</td>
+            <td><span class="check">✅</span> Yes</td>
+        </tr>
+        <tr>
+            <td><strong>Query optimizer</strong></td>
+            <td>Can choose it automatically</td>
+            <td>Typically query the target explicitly</td>
+        </tr>
+        <tr>
+            <td><strong>Custom filtering and transformation</strong></td>
+            <td>More limited</td>
+            <td>Flexible SELECT logic</td>
+        </tr>
+        <tr>
+            <td><strong>Historical data</strong></td>
+            <td>Materialize projection for existing parts</td>
+            <td>Backfill target separately</td>
+        </tr>
+        <tr>
+            <td><strong>Storage overhead</strong></td>
+            <td>Additional storage</td>
+            <td>Additional storage</td>
+        </tr>
+        <tr>
+            <td><strong>Typical use case</strong></td>
+            <td>Make existing queries faster</td>
+            <td>Build a dashboard-ready summary</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>A useful rule of thumb:</strong></p>
+    <p><strong>Choose a Projection</strong> when you want to improve the execution of queries against an existing table without changing the query interface.</p>
+    <p><strong>Choose a Materialized View</strong> when you want to maintain a separately modeled, transformed, or aggregated dataset.</p>
+</div>
+
+<div class="example-box info">
+    <p><strong>💡 These are guidelines rather than absolute rules;</strong> both features can support pre-aggregation.</p>
+</div>
+
+<hr>
+
+<h2>6. How Do You Verify Whether a Projection Is Used?</h2>
+
+<div class="example-box warning">
+    <p><strong>⚠️ Don't assume that creating a projection means ClickHouse will use it.</strong></p>
+</div>
+
+<p>First, inspect the available projections:</p>
+
+<pre><code>SELECT
+    database,
+    table,
+    name,
+    type,
+    sorting_key
+FROM system.projections
+WHERE database = 'test_db';</code></pre>
+
+<p>Next, inspect the query plan:</p>
+
+<pre><code>EXPLAIN indexes = 1
+SELECT
+    country,
+    count()
+FROM test_db.orders
+GROUP BY country;</code></pre>
+
+<p>Look for evidence that a projection is selected. The exact output depends on the ClickHouse version and query.</p>
+
+<p>You can also compare query performance with projections enabled and disabled:</p>
+
+<pre><code>SELECT
+    country,
+    count()
+FROM test_db.orders
+GROUP BY country
+SETTINGS optimize_use_projections = 0;</code></pre>
+
+<p>Compare this with the same query using the default setting. Check execution time and <code>read_rows</code> in <code>system.query_log</code>, and make sure both queries return the same results.</p>
+
+<hr>
+
+<h2>Summary</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Concept</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Projection</strong></td>
+            <td>Alternative physical representation stored within source table parts</td>
+        </tr>
+        <tr>
+            <td><strong>Materialized View</strong></td>
+            <td>Separate pipeline that transforms inserts into a target table</td>
+        </tr>
+        <tr>
+            <td><strong>Optimizer</strong></td>
+            <td>Automatically selects projections; MVs are queried explicitly</td>
+        </tr>
+        <tr>
+            <td><strong>Verification</strong></td>
+            <td>Use <code>system.projections</code>, <code>EXPLAIN</code>, and <code>system.query_log</code></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>💡 Key Takeaway:</strong> Use projections to accelerate queries on the same table without changing your SQL. Use Materialized Views to build separate, transformed datasets — especially for dashboards.</p>
+</div>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Projections vs Materialized Views<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
