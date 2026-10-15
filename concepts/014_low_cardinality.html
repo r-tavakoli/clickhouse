@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse LowCardinality</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        .example-box.danger {
+            border-left: 5px solid #f85149;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        .data-table {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 0.9rem;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .data-table td, .data-table th {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #30363d;
+        }
+        .data-table th {
+            background: #1f2937;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+
+    </style>
+</head>
+<body>
+
+<h1>📦 LowCardinality</h1>
+
+<div class="blockquote">
+    <p><strong>LowCardinality</strong> can reduce memory usage and improve query performance by encoding repeated string values as dictionary-based identifiers.</p>
+</div>
+
+<p>This is especially useful when working with billions of rows containing columns such as <code>country</code>, <code>status</code>, <code>category</code>, or <code>payment_method</code>.</p>
+
+<hr>
+
+<h2>1. The Problem</h2>
+
+<p>Imagine your <code>test_db.orders</code> table contains <strong>100 million rows</strong>.</p>
+
+<p>Your <code>country</code> column contains values such as:</p>
+
+<pre><code>Iran
+Spain
+Iraq
+Lebanon
+Iran
+Spain
+Iran
+...</code></pre>
+
+<div class="example-box warning">
+    <p><strong>⚠️ The same strings appear repeatedly.</strong></p>
+    <p>With a regular <code>String</code> column, ClickHouse stores string values in its column representation. Repeated strings can therefore consume more storage and processing resources than a dictionary-based representation would.</p>
+</div>
+
+<p>But notice something important:</p>
+
+<pre><code>100 million rows
+4 distinct countries</code></pre>
+
+<div class="blockquote">
+    <p><strong>There are millions of repetitions but only four unique values.</strong></p>
+    <p>This is exactly the kind of situation where <code>LowCardinality(String)</code> may help.</p>
+</div>
+
+<hr>
+
+<h2>2. What Is LowCardinality?</h2>
+
+<p>Consider this column:</p>
+<pre><code>country String</code></pre>
+
+<p>We can instead define it as:</p>
+<pre><code>country LowCardinality(String)</code></pre>
+
+<p>Conceptually, ClickHouse can represent the data using a <strong>dictionary</strong> and <strong>integer identifiers</strong>.</p>
+
+<p>For example:</p>
+
+
+<div class="card">
+
+    <h3>Conceptual example</h3>
+
+    <div class="label">Dictionary</div>
+
+    <div class="dictionary">
+        <div class="dict-entry">
+            <span class="dict-id">ID 1</span>
+            <span class="dict-value">Iran</span>
+        </div>
+        <div class="dict-entry">
+            <span class="dict-id">ID 2</span>
+            <span class="dict-value">Spain</span>
+        </div>
+        <div class="dict-entry">
+            <span class="dict-id">ID 3</span>
+            <span class="dict-value">Iraq</span>
+        </div>
+        <div class="dict-entry">
+            <span class="dict-id">ID 4</span>
+            <span class="dict-value">Lebanon</span>
+        </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="encoded-label">Conceptual encoded values</div>
+
+    <div class="encoded-values">
+        <div class="encoded-box">1</div>
+        <div class="encoded-box">2</div>
+        <div class="encoded-box">1</div>
+        <div class="encoded-box">3</div>
+        <div class="encoded-box">1</div>
+        <div class="encoded-box">4</div>
+        <div class="encoded-box">2</div>
+        <div class="encoded-box">1</div>
+    </div>
+
+</div>
+<div class="example-box info">
+    <p><strong>💡 Instead of repeatedly representing the full country name, the data can use dictionary identifiers.</strong> This illustrates the concept, not ClickHouse's exact on-disk encoding.</p>
+</div>
+
+<p>The dictionary maps identifiers back to their corresponding strings when the values are needed.</p>
+
+<h3>Why can this improve performance?</h3>
+
+<ul>
+    <li>Less storage for repetitive string values in suitable datasets.</li>
+    <li>Less memory needed for some operations.</li>
+    <li>Faster grouping and comparison in some workloads because operations can work with encoded values.</li>
+</ul>
+
+<div class="example-box warning">
+    <p><strong>⚠️ However, LowCardinality is not always faster or smaller.</strong> Its benefits depend on the number of distinct values, the column's data, and the query workload.</p>
+</div>
+
+<hr>
+
+<h2>3. How Do You Use It?</h2>
+
+<p>You can create a table with <code>LowCardinality</code> columns directly.</p>
+
+<p>For example:</p>
+
+<pre><code>CREATE TABLE test_db.orders_lc
+(
+    order_id UInt32,
+    order_date Date,
+    customer_id UInt32,
+    product_id UInt32,
+    category LowCardinality(String),
+    country LowCardinality(String),
+    payment_method LowCardinality(String),
+    status LowCardinality(String),
+    quantity UInt16,
+    price Float64
+)
+ENGINE = MergeTree()
+PARTITION BY toYYYYMM(order_date)
+ORDER BY (order_date, customer_id);</code></pre>
+
+<p>Notice that we changed these columns:</p>
+
+<pre><code>category LowCardinality(String),
+country LowCardinality(String),
+payment_method LowCardinality(String),
+status LowCardinality(String)</code></pre>
+
+<div class="example-box info">
+    <p><strong>💡 We did <em>not</em> change <code>order_id</code>, <code>customer_id</code>, or <code>quantity</code> to LowCardinality, because numeric identifiers and quantities already have suitable numeric representations.</strong></p>
+</div>
+
+<p>For an existing table, you can also change a column's type:</p>
+
+<pre><code>ALTER TABLE test_db.orders
+MODIFY COLUMN country LowCardinality(String);</code></pre>
+
+<div class="example-box warning">
+    <p><strong>⚠️ Before modifying a large production table, consider the conversion cost and test it on a representative dataset.</strong></p>
+</div>
+
+<hr>
+
+<h2>4. When Should You Use LowCardinality?</h2>
+
+<p>A useful starting point is to compare the number of <strong>distinct values</strong> with the <strong>total number of rows</strong>.</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Column</th>
+            <th>Example Distinct Values</th>
+            <th>Suitability</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>country</code></td>
+            <td>4–200</td>
+            <td><span class="check">✅</span> Often a good candidate</td>
+        </tr>
+        <tr>
+            <td><code>status</code></td>
+            <td>3–20</td>
+            <td><span class="check">✅</span> Often a good candidate</td>
+        </tr>
+        <tr>
+            <td><code>payment_method</code></td>
+            <td>5–30</td>
+            <td><span class="check">✅</span> Often a good candidate</td>
+        </tr>
+        <tr>
+            <td><code>category</code></td>
+            <td>10–1,000</td>
+            <td><span class="check">✅</span> Often worth testing</td>
+        </tr>
+        <tr>
+            <td><code>customer_name</code></td>
+            <td>Millions</td>
+            <td><span class="cross">❌</span> A poor candidate</td>
+        </tr>
+        <tr>
+            <td><code>order_id</code></td>
+            <td>Almost every row</td>
+            <td><span class="cross">❌</span> A poor candidate</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="example-box info">
+    <p><strong>💡 These are guidelines, not strict thresholds.</strong></p>
+    <p>The key question is:</p>
+    <p><em>Does this column have relatively few distinct values compared with the number of rows?</em></p>
+</div>
+
+<div class="blockquote">
+    <p>ClickHouse documentation commonly recommends considering <code>LowCardinality</code> for columns with fewer than roughly <strong>10,000 distinct values</strong>, while its benefit often diminishes as cardinality rises. Benchmark your actual workload rather than treating that number as a hard cutoff.</p>
+</div>
+
+<hr>
+
+<h2>5. Today's System-Table Exercise</h2>
+
+<p>We can use <code>system.columns</code> to inspect your table's column types.</p>
+
+<pre><code>SELECT
+    database,
+    table,
+    name AS column_name,
+    type
+FROM system.columns
+WHERE database = 'test_db'
+  AND table = 'orders'
+ORDER BY position;</code></pre>
+
+<p>Next, let's estimate the cardinality of your candidate columns:</p>
+
+<pre><code>SELECT
+    count() AS total_rows,
+    uniqExact(country) AS distinct_countries,
+    uniqExact(status) AS distinct_statuses,
+    uniqExact(category) AS distinct_categories,
+    uniqExact(payment_method) AS distinct_payment_methods
+FROM test_db.orders;</code></pre>
+
+<div class="example-box warning">
+    <p><strong>⚠️ <code>uniqExact</code> calculates exact distinct counts, which can itself be expensive on very large datasets.</strong> For a quick exploratory estimate, you can use <code>uniq</code> instead.</p>
+</div>
+
+<hr>
+
+<h2>Summary</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Concept</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>LowCardinality(String)</strong></td>
+            <td>Dictionary-encoded string column for repeated values</td>
+        </tr>
+        <tr>
+            <td><strong>Best for</strong></td>
+            <td>Columns with few distinct values relative to total rows</td>
+        </tr>
+        <tr>
+            <td><strong>Avoid for</strong></td>
+            <td>High-cardinality columns (IDs, names, unique values)</td>
+        </tr>
+        <tr>
+            <td><strong>Conversion</strong></td>
+            <td>Use <code>ALTER TABLE ... MODIFY COLUMN</code> — test first</td>
+        </tr>
+        <tr>
+            <td><strong>Cardinality check</strong></td>
+            <td>Use <code>uniqExact()</code> or <code>uniq()</code> to estimate distinct counts</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>💡 Key Takeaway:</strong> <code>LowCardinality</code> is a powerful optimization for repetitive string columns, but it's not a silver bullet. Always benchmark your actual workload.</p>
+</div>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — LowCardinality<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
