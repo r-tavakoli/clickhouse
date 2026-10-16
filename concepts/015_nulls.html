@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ClickHouse Nullable Columns</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.7;
+            padding: 2rem 1.5rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4 {
+            color: #f0f6fc;
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+        h1 {
+            font-size: 2.2rem;
+            border-bottom: 2px solid #30363d;
+            padding-bottom: 0.5rem;
+        }
+        h2 { font-size: 1.6rem; color: #58a6ff; }
+        h3 { font-size: 1.3rem; color: #f0883e; }
+        h4 { font-size: 1.1rem; color: #8b949e; }
+        p, li {
+            margin-bottom: 0.8rem;
+            color: #c9d1d9;
+        }
+        ul, ol {
+            padding-left: 1.8rem;
+            margin-bottom: 1rem;
+        }
+        li { margin-bottom: 0.4rem; }
+        code {
+            background: #161b22;
+            color: #f0883e;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: "SF Mono", "Fira Code", monospace;
+        }
+        pre {
+            background: #161b22;
+            padding: 1.2rem 1.5rem;
+            border-radius: 10px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 1.2rem 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        pre code {
+            background: transparent;
+            color: #e6edf3;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .blockquote {
+            border-left: 4px solid #58a6ff;
+            background: #0d1117;
+            padding: 0.8rem 1.2rem;
+            margin: 1.2rem 0;
+            border-radius: 0 8px 8px 0;
+            color: #c9d1d9;
+        }
+        .example-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 1.2rem 1.5rem;
+            margin: 1.2rem 0;
+        }
+        .example-box.good {
+            border-left: 5px solid #2ea043;
+        }
+        .example-box.bad {
+            border-left: 5px solid #f85149;
+        }
+        .example-box.info {
+            border-left: 5px solid #58a6ff;
+        }
+        .example-box.warning {
+            border-left: 5px solid #f9a825;
+        }
+        .example-box.danger {
+            border-left: 5px solid #f85149;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2rem 0;
+            background: #161b22;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+        th {
+            background: #1f2937;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        td {
+            color: #c9d1d9;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #30363d;
+            margin: 2rem 0;
+        }
+        .footer {
+            margin-top: 2.5rem;
+            color: #8b949e;
+            font-size: 0.95rem;
+            border-top: 1px solid #21262d;
+            padding-top: 1.5rem;
+            text-align: center;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+            border-bottom: 1px dotted #58a6ff;
+        }
+        .footer a:hover {
+            color: #79c0ff;
+            border-bottom: 1px solid #79c0ff;
+        }
+        .highlight {
+            background: #1f2937;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: #f9a825;
+        }
+        .check { color: #2ea043; font-weight: bold; }
+        .cross { color: #f85149; font-weight: bold; }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+        }
+        .flow-step {
+            background: #1f2937;
+            padding: 0.4rem 1.2rem;
+            border-radius: 20px;
+            color: #e6edf3;
+            font-size: 0.95rem;
+            width: fit-content;
+        }
+        .flow-arrow {
+            color: #58a6ff;
+            font-size: 1.2rem;
+        }
+        .data-table {
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 0.9rem;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .data-table td, .data-table th {
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #30363d;
+        }
+        .data-table th {
+            background: #1f2937;
+        }
+        .tag {
+            display: inline-block;
+            background: #1f2937;
+            padding: 0.1rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-right: 0.3rem;
+        }
+        .formula {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 0.8rem 1.2rem;
+            margin: 1rem 0;
+            text-align: center;
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 1rem;
+            color: #f9a825;
+        }
+        @media (max-width: 600px) {
+            body { padding: 1rem; }
+            h1 { font-size: 1.7rem; }
+            pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.5rem 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>❓ Nullable Columns in ClickHouse</h1>
+
+<div class="blockquote">
+    <p>In ClickHouse, allowing a column to contain <code>NULL</code> has storage and query-processing implications. The goal is to use it when the data genuinely requires it, rather than making every column nullable by default.</p>
+</div>
+
+
+<h2>1. The Problem — Missing Data</h2>
+
+<p>Imagine your <code>orders</code> table has these records:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>order_id</th>
+            <th>country</th>
+            <th>payment_method</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td>101</td><td>Iran</td><td>Card</td></tr>
+        <tr><td>102</td><td>Spain</td><td>Cash</td></tr>
+        <tr><td>103</td><td>Lebanon</td><td>NULL</td></tr>
+        <tr><td>104</td><td>NULL</td><td>Card</td></tr>
+    </tbody>
+</table>
+
+<p><strong>What does NULL mean here?</strong></p>
+<ul>
+    <li><strong>Order 103:</strong> the payment method is unknown or wasn't recorded.</li>
+    <li><strong>Order 104:</strong> the country is unknown or missing.</li>
+</ul>
+
+<div class="example-box warning">
+    <p><strong>⚠️ NULL is not the same as an empty string (<code>''</code>), zero (<code>0</code>), or the text <code>'NULL'</code>.</strong></p>
+</div>
+
+<p>For example:</p>
+<pre><code>NULL       -- missing/unknown value
+''         -- an empty string
+'NULL'     -- the literal text NULL
+0          -- numeric zero</code></pre>
+
+<div class="blockquote">
+    <p><strong>These values can have different meanings in your business logic, so don't treat them as interchangeable.</strong></p>
+</div>
+
+<hr>
+
+<h2>2. How Do You Define a Nullable Column?</h2>
+
+<p>In ClickHouse, columns are <strong>non-nullable by default</strong> unless you explicitly define otherwise.</p>
+
+<p>For example:</p>
+
+<pre><code>CREATE TABLE test_db.customer_feedback
+(
+    customer_id UInt32,
+    rating Nullable(UInt8),
+    comment Nullable(String)
+)
+ENGINE = MergeTree()
+ORDER BY customer_id;</code></pre>
+
+<p>Here:</p>
+<ul>
+    <li><code>customer_id</code> must contain a numeric value.</li>
+    <li><code>rating</code> can contain a rating or <code>NULL</code>.</li>
+    <li><code>comment</code> can contain text or <code>NULL</code>.</li>
+</ul>
+
+<p>Insert some sample data:</p>
+
+<pre><code>INSERT INTO test_db.customer_feedback
+VALUES
+    (1, 5, 'Excellent'),
+    (2, 4, 'Good'),
+    (3, NULL, 'No rating provided'),
+    (4, 0, NULL);</code></pre>
+
+<div class="example-box info">
+    <p><strong>💡 Notice that customer 4 has a rating of 0, which is different from customer 3's missing rating.</strong></p>
+    <p>If zero is not a valid business rating, you may choose a different data model. The important thing is to preserve the meaning of the data.</p>
+</div>
+
+<hr>
+
+<h2>3. How Do You Query NULL Values?</h2>
+
+<p>This is an important difference from ordinary comparisons.</p>
+
+<h3>Find missing ratings</h3>
+<pre><code>SELECT *
+FROM test_db.customer_feedback
+WHERE isNull(rating);</code></pre>
+
+<h3>Find ratings that are present</h3>
+<pre><code>SELECT *
+FROM test_db.customer_feedback
+WHERE isNotNull(rating);</code></pre>
+
+<h3>Replace NULL with a default value in query results</h3>
+<p>You can use <code>ifNull()</code>:</p>
+<pre><code>SELECT
+    customer_id,
+    ifNull(rating, 0) AS rating
+FROM test_db.customer_feedback;</code></pre>
+
+<p>This returns <code>0</code> for customers without a rating, but does <strong>not</strong> modify the stored data.</p>
+
+<p>You can also use <code>coalesce()</code> when you have multiple fallback values:</p>
+<pre><code>SELECT
+    customer_id,
+    coalesce(comment, 'No comment') AS comment
+FROM test_db.customer_feedback;</code></pre>
+
+<h3>A common mistake</h3>
+
+<div class="example-box danger">
+    <p><strong>❌ Don't write:</strong></p>
+    <pre><code>WHERE rating = NULL</code></pre>
+    <p><strong>✅ Use:</strong></p>
+    <pre><code>WHERE isNull(rating)</code></pre>
+</div>
+
+<div class="blockquote">
+    <p><strong>A missing value isn't an ordinary value that you compare with <code>=</code>.</strong></p>
+</div>
+
+<hr>
+
+<h2>4. How NULL Affects Aggregations</h2>
+
+<p>Suppose you run:</p>
+
+<pre><code>SELECT
+    count() AS total_rows,
+    count(rating) AS rated_rows,
+    avg(rating) AS average_rating
+FROM test_db.customer_feedback;</code></pre>
+
+<p>The results are conceptually:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Metric</th>
+            <th>Result</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td>total_rows</td><td>4</td></tr>
+        <tr><td>rated_rows</td><td>3</td></tr>
+        <tr><td>average_rating</td><td>3</td></tr>
+    </tbody>
+</table>
+
+<p><strong>Why?</strong></p>
+<ul>
+    <li><code>count()</code> counts <strong>all</strong> rows.</li>
+    <li><code>count(rating)</code> counts <strong>non-NULL</strong> ratings.</li>
+    <li><code>avg(rating)</code> ignores <code>NULL</code> values when calculating the average.</li>
+</ul>
+
+<p>The average is:</p>
+
+<div class="formula">
+    (5 + 4 + 0) / 3 = 3
+</div>
+
+<div class="example-box warning">
+    <p><strong>⚠️ This matters in business analytics.</strong> If you replace missing ratings with zero before calculating the average, you change the business meaning of the metric.</p>
+</div>
+
+<div class="blockquote">
+    <p><strong>Rule:</strong> Missing values should only be converted to zero when zero is genuinely the correct business interpretation.</p>
+</div>
+
+<hr>
+
+<h2>5. Why Can Nullable Affect Performance?</h2>
+
+<p>ClickHouse stores the actual column values alongside information indicating which rows are <code>NULL</code>. This <strong>null mask</strong> introduces additional storage and processing overhead.</p>
+
+<p>For example:</p>
+<pre><code>rating UInt8</code></pre>
+<p>is a simpler representation than:</p>
+<pre><code>rating Nullable(UInt8)</code></pre>
+
+<div class="example-box info">
+    <p><strong>💡 But this does not mean you should remove every nullable column.</strong></p>
+</div>
+
+<p>Consider these cases:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Column</th>
+            <th>Recommended Approach</th>
+            <th>Reason</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>quantity</code></td>
+            <td>Usually non-nullable</td>
+            <td>Missing quantity should typically be rejected or handled during ingestion</td>
+        </tr>
+        <tr>
+            <td><code>discount_amount</code></td>
+            <td>Depends on business meaning</td>
+            <td><code>NULL</code> may mean unknown, while zero means no discount</td>
+        </tr>
+        <tr>
+            <td><code>customer_comment</code></td>
+            <td>Nullable if absent comments mean missing data</td>
+            <td>An empty string may have a different meaning</td>
+        </tr>
+        <tr>
+            <td><code>delivery_date</code></td>
+            <td>Nullable if orders may not yet be delivered</td>
+            <td>A placeholder date could be misleading</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>A practical schema-design rule:</strong></p>
+    <p>Avoid <code>Nullable</code> when missing data has no meaningful distinction from the type's default value. Use it when that distinction matters.</p>
+</div>
+
+<div class="example-box danger">
+    <p><strong>🚨 Don't silently convert missing values into defaults just to save storage.</strong></p>
+</div>
+
+<hr>
+
+<h2>Summary</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Concept</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Nullable(T)</strong></td>
+            <td>Allows a column to store <code>NULL</code> in addition to type <code>T</code> values</td>
+        </tr>
+        <tr>
+            <td><strong>NULL semantics</strong></td>
+            <td>Missing/unknown — not the same as <code>''</code>, <code>0</code>, or <code>'NULL'</code></td>
+        </tr>
+        <tr>
+            <td><strong>Querying</strong></td>
+            <td>Use <code>isNull()</code> / <code>isNotNull()</code>, not <code>= NULL</code></td>
+        </tr>
+        <tr>
+            <td><strong>Aggregations</strong></td>
+            <td><code>count(col)</code> and <code>avg(col)</code> skip <code>NULL</code> values</td>
+        </tr>
+        <tr>
+            <td><strong>Performance</strong></td>
+            <td>Nullable adds a null mask, increasing storage and processing overhead</td>
+        </tr>
+        <tr>
+            <td><strong>Best practice</strong></td>
+            <td>Use Nullable only when missing data is meaningfully different from a default</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="blockquote">
+    <p><strong>💡 Key Takeaway:</strong> <code>Nullable</code> is about <em>semantics</em>, not convenience. Use it deliberately to preserve the meaning of missing data.</p>
+</div>
+
+<div class="footer">
+    ⚡ ClickHouse Mindset — Nullable<br>
+    <a href="https://github.com/r-tavakoli" target="_blank">https://github.com/r-tavakoli</a>
+</div>
+
+</body>
+</html>
